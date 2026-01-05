@@ -1,0 +1,814 @@
+#ifndef CustomerFeature_
+#define CustomerFeature_
+
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <cctype>
+#include <cstdlib>
+#include <ctime>
+#include <algorithm>
+#include "adminFeature.h"
+using namespace std;
+
+// ==========================
+// Akun Pelanggan
+// ==========================
+class AkunPelanggan {
+private:
+    string username, password;
+public:
+    AkunPelanggan() {}
+    AkunPelanggan(string u, string p) : username(u), password(p) {}
+    string getUsername() { return username; }
+    string getPassword() { return password; }
+};
+
+// ==========================
+// Array Dinamis 
+// ==========================
+template<typename T>
+class DynamicArraySimple {
+public:
+    T* data;
+    int size;
+    int capacity;
+
+    DynamicArraySimple() : data(nullptr), size(0), capacity(0) {}
+    ~DynamicArraySimple() { delete[] data; }
+
+    void reserve(int newCap) {
+        if (newCap <= capacity) return;
+        T* tmp = new T[newCap];
+        for (int i = 0; i < size; ++i) tmp[i] = data[i];
+        delete[] data;
+        data = tmp;
+        capacity = newCap;
+    }
+
+    void push_back(const T& v) {
+        if (capacity == 0) reserve(1);
+        if (size >= capacity) reserve(capacity * 2);
+        data[size++] = v;
+    }
+
+    bool containsUser(const string& u) {
+        for (int i = 0; i < size; ++i) if (data[i].getUsername() == u) return true;
+        return false;
+    }
+};
+
+// ==========================
+// Sistem Akun Pelanggan 
+// ==========================
+class SistemAkun {
+private:
+    DynamicArraySimple<AkunPelanggan> akunList;
+    string currentUser;
+    string currentPass;
+    bool loggedIn = false;
+public:
+    SistemAkun() {
+        muatDariFile();
+    }
+
+    void muatDariFile() {
+        ifstream file("akun_pelanggan.txt");
+        if (!file.is_open()) return;
+        string line;
+        while (getline(file, line)) {
+            if (line.empty()) continue;
+            size_t pos = line.find('|');
+            if (pos != string::npos) {
+                string user = line.substr(0, pos);
+                string pass = line.substr(pos + 1);
+                akunList.push_back(AkunPelanggan(user, pass));
+            }
+        }
+        file.close();
+    }
+
+    void simpanKeFile(const string& username, const string& password) {
+        ofstream file("akun_pelanggan.txt", ios::app);
+        file << username << "|" << password << endl;
+        file.close();
+    }
+
+    bool isLogged() const { return loggedIn; }
+    string getCurrentUser() const { return currentUser; }
+    string getCurrentPass() const { return currentPass; }
+
+    void logout() {
+        currentUser.clear();
+        currentPass.clear();
+        loggedIn = false;
+    }
+
+    void registerAkun() {
+        string username, password;
+        cout << "\n=== REGISTER AKUN BARU ===\n";
+        cout << "Masukkan Username: ";
+        cin >> username;
+        cout << "Masukkan Password: ";
+        cin >> password;
+
+        if (akunList.containsUser(username)) {
+            cout << "Username sudah digunakan!\n";
+            return;
+        }
+
+        simpanKeFile(username, password);
+        cout << "Akun berhasil dibuat!\n";
+        akunList.push_back(AkunPelanggan(username, password));
+    }
+
+    bool loginAkun() {
+        string username, password;
+        cout << "\n=== LOGIN PELANGGAN ===\n";
+        cout << "Masukkan Username: ";
+        cin >> username;
+        cout << "Masukkan Password: ";
+        cin >> password;
+
+        for (int i = 0; i < akunList.size; ++i) {
+            if (akunList.data[i].getUsername() == username && akunList.data[i].getPassword() == password) {
+                cout << "\nLogin berhasil! Selamat datang, " << username << "!\n";
+                currentUser = username;
+                currentPass = password;
+                loggedIn = true;
+                return true;
+            }
+        }
+        cout << "\nLogin gagal! Username atau password salah.\n";
+        return false;
+    }
+};
+
+// ==========================
+// Fitur Pelanggan
+// ==========================
+class CustomerFeature {
+private:
+    SistemAkun sistemAkun;
+    DataPelanggan pelanggan;
+
+    // Struktur data Tree sederhana untuk menampilkan jadwal secara terurut
+    struct FlightNode {
+        Penerbangan data;
+        FlightNode* left;
+        FlightNode* right;
+        FlightNode(const Penerbangan& p) : data(p), left(nullptr), right(nullptr) {}
+    };
+
+    FlightNode* rootTree = nullptr;
+
+    struct TicketRecord {
+        string nik;
+        string nama;
+        int umur;
+        string gender;
+        string asal;
+        string tujuan;
+        string maskapai;
+        string tanggal;
+        string jam;
+        string status;
+        int bagasi;
+        string kursi;
+        string gate;
+        string keterangan;
+    };
+
+    const string tiketHeader = "NIK|Nama|Umur|Gender|Asal|Tujuan|Maskapai|Tanggal|Jam|Status|Bagasi|Kursi|Gate|Keterangan";
+
+    string buatNomorPenerbangan(const Penerbangan& p, int urut) {
+        string kode;
+        for (char c : p.maskapai) {
+            if (isalpha(static_cast<unsigned char>(c))) {
+                kode.push_back(static_cast<char>(toupper(static_cast<unsigned char>(c))));
+                if (kode.size() == 2) break;
+            }
+        }
+        while (kode.size() < 2) kode.push_back('X');
+        int angka = 100 + (urut % 900);
+        return kode + to_string(angka);
+    }
+
+    void seedRandom() {
+        static bool seeded = false;
+        if (!seeded) {
+            srand(static_cast<unsigned>(time(nullptr)));
+            seeded = true;
+        }
+    }
+
+    bool hanyaAngka(const string& s) {
+        if (s.empty()) return false;
+        for (char c : s) {
+            if (!isdigit(static_cast<unsigned char>(c))) return false;
+        }
+        return true;
+    }
+
+    bool parseBerat(const string& teks, int& beratOut) {
+        string angka;
+        for (char c : teks) {
+            if (isdigit(static_cast<unsigned char>(c))) angka.push_back(c);
+        }
+        if (angka.empty()) return false;
+        try {
+            beratOut = stoi(angka);
+            return true;
+        } catch (...) {
+            return false;
+        }
+    }
+
+    string acakGate() {
+        seedRandom();
+        char huruf = 'A' + (rand() % 6);
+        int angka = 1 + (rand() % 20);
+        return string(1, huruf) + to_string(angka);
+    }
+
+    string acakKursi() {
+        seedRandom();
+        int row = 1 + (rand() % 30);
+        char seat = 'A' + (rand() % 6);
+        return to_string(row) + string(1, seat);
+    }
+
+    string formatRupiah(long nilai) {
+        bool neg = nilai < 0;
+        if (neg) nilai = -nilai;
+        string digits = to_string(nilai);
+        string hasil;
+        int count = 0;
+        for (int i = (int)digits.size() - 1; i >= 0; --i) {
+            hasil.push_back(digits[i]);
+            count++;
+            if (count == 3 && i != 0) {
+                hasil.push_back('.');
+                count = 0;
+            }
+        }
+        reverse(hasil.begin(), hasil.end());
+        if (neg) hasil = "-" + hasil;
+        return "Rp " + hasil;
+    }
+
+    string keyFrom(const Penerbangan& p) {
+        return p.asal + "|" + p.tujuan + "|" + p.jadwal.tanggal + "|" + p.jadwal.jam + "|" + p.maskapai;
+    }
+
+    FlightNode* insertNode(FlightNode* node, const Penerbangan& p) {
+        if (!node) return new FlightNode(p);
+        if (keyFrom(p) <= keyFrom(node->data)) node->left = insertNode(node->left, p);
+        else node->right = insertNode(node->right, p);
+        return node;
+    }
+
+    void clearTree(FlightNode* node) {
+        if (!node) return;
+        clearTree(node->left);
+        clearTree(node->right);
+        delete node;
+    }
+
+    void inorderPrint(FlightNode* node, int& urut) {
+        if (!node) return;
+        inorderPrint(node->left, urut);
+        cout << urut++ << ". " << node->data.maskapai << " | "
+             << node->data.asal << " -> " << node->data.tujuan
+             << " | " << node->data.jadwal.tanggal << " " << node->data.jadwal.jam
+             << " | Bagasi Maks: " << node->data.maxBeratBagasi << "kg\n";
+        inorderPrint(node->right, urut);
+    }
+
+    bool isHeaderLine(const string& line) {
+        return line.find("NIK|Nama|Umur|Gender|Asal|Tujuan|Maskapai|Tanggal|Jam") == 0;
+    }
+
+    bool parseTicketLine(const string& line, TicketRecord& out) {
+        if (line.empty() || isHeaderLine(line)) return false;
+
+        string fields[14];
+        int idx = 0;
+        string remain = line;
+        while (idx < 14) {
+            size_t pos = remain.find('|');
+            if (pos == string::npos) {
+                fields[idx++] = remain;
+                break;
+            }
+            fields[idx++] = remain.substr(0, pos);
+            remain = remain.substr(pos + 1);
+        }
+        while (idx < 14) fields[idx++] = "";
+
+        if (fields[0].empty() || fields[1].empty()) return false;
+
+        out.nik = fields[0];
+        out.nama = fields[1];
+        out.umur = fields[2].empty() ? 0 : atoi(fields[2].c_str());
+        out.gender = fields[3];
+        out.asal = fields[4];
+        out.tujuan = fields[5];
+        out.maskapai = fields[6];
+        out.tanggal = fields[7];
+        out.jam = fields[8];
+        out.status = fields[9].empty() ? "BELUM CHECK-IN" : fields[9];
+        out.bagasi = fields[10].empty() ? -1 : atoi(fields[10].c_str());
+        out.kursi = fields[11];
+        out.gate = fields[12];
+        out.keterangan = fields[13];
+        return true;
+    }
+
+    string serializeTicket(const TicketRecord& t) {
+        string bagasiStr = (t.bagasi < 0) ? "" : to_string(t.bagasi);
+        return t.nik + "|" + t.nama + "|" + to_string(t.umur) + "|" + t.gender + "|" +
+               t.asal + "|" + t.tujuan + "|" + t.maskapai + "|" + t.tanggal + "|" + t.jam + "|" +
+               t.status + "|" + bagasiStr + "|" + t.kursi + "|" + t.gate + "|" + t.keterangan;
+    }
+
+    bool fileKosong(const string& namaFile) {
+        ifstream cek(namaFile.c_str());
+        if (!cek.is_open()) return true;
+        bool kosong = (cek.peek() == ifstream::traits_type::eof());
+        cek.close();
+        return kosong;
+    }
+
+    DynamicArraySimple<TicketRecord> bacaSemuaTiket() {
+        DynamicArraySimple<TicketRecord> daftar;
+        ifstream file("data_pelanggan.txt");
+        if (!file.is_open()) return daftar;
+
+        string line;
+        while (getline(file, line)) {
+            TicketRecord t;
+            if (parseTicketLine(line, t)) daftar.push_back(t);
+        }
+        file.close();
+        return daftar;
+    }
+
+    void simpanSemuaTiket(const DynamicArraySimple<TicketRecord>& daftar) {
+        ofstream file("data_pelanggan.txt", ios::trunc);
+        file << tiketHeader << "\n";
+        for (int i = 0; i < daftar.size; ++i) {
+            file << serializeTicket(daftar.data[i]) << "\n";
+        }
+        file.close();
+    }
+
+public:
+    void pesanTiket(Penerbangan daftar[], int jumlah) {
+        string nik, nama, gender, asal, tujuan;
+        int umur;
+
+        cin.ignore();
+        cout << "\n=== PESAN TIKET PENERBANGAN ===\n";
+        cout << "Masukkan NIK: "; getline(cin, nik);
+        cout << "Masukkan Nama: "; getline(cin, nama);
+        cout << "Masukkan Umur: "; cin >> umur; cin.ignore();
+        cout << "Masukkan Jenis Kelamin (L/P): "; getline(cin, gender);
+        cout << "Asal: "; getline(cin, asal);
+        cout << "Tujuan: "; getline(cin, tujuan);
+
+        // Muat jadwal dari file agar sinkron dengan data terbaru admin
+        DynamicArraySimple<Penerbangan> daftarFile;
+        ifstream f("data_penerbangan.txt");
+        if (f.is_open()) {
+            while (true) {
+                Penerbangan temp;
+                if (!(f >> temp.asal >> temp.tujuan >> temp.jadwal.tanggal >> temp.jadwal.jam >> temp.maxBeratBagasi)) break;
+                f.ignore();
+                getline(f, temp.maskapai);
+                daftarFile.push_back(temp);
+            }
+            f.close();
+        }
+
+        // Jika file kosong/gagal, gunakan data bawaan parameter
+        if (daftarFile.size == 0) {
+            for (int i = 0; i < jumlah; ++i) daftarFile.push_back(daftar[i]);
+        }
+
+        int ditemukan = 0;
+        DynamicArraySimple<int> listIndex;
+
+        cout << "\n=== PENERBANGAN TERSEDIA ===\n";
+        for (int i = 0; i < daftarFile.size; i++) {
+            if (daftarFile.data[i].asal == asal && daftarFile.data[i].tujuan == tujuan) {
+                listIndex.push_back(i);
+                ditemukan++;
+                cout << ditemukan << ". " << daftarFile.data[i].maskapai
+                     << " | " << daftarFile.data[i].jadwal.tanggal
+                     << " " << daftarFile.data[i].jadwal.jam
+                     << " | Bagasi Max: " << daftarFile.data[i].maxBeratBagasi << " kg\n";
+            }
+        }
+
+        if (ditemukan == 0) {
+            cout << "\nTidak ada penerbangan.\n";
+            return;
+        }
+
+        int pilih;
+        cout << "\nPilih penerbangan: ";
+        if (!(cin >> pilih)) {
+            cin.clear();
+            cin.ignore(10000, '\n');
+            cout << "Input harus berupa angka.\n";
+            return;
+        }
+        cin.ignore(10000, '\n');
+
+        if (pilih < 1 || pilih > ditemukan) {
+            cout << "Pilihan tidak valid.\n";
+            return;
+        }
+
+        Penerbangan p = daftarFile.data[listIndex.data[pilih - 1]];
+
+        bool kosong = fileKosong("data_pelanggan.txt");
+
+        ofstream file("data_pelanggan.txt", ios::app);
+        if (!file.is_open()) {
+            cout << "Gagal membuka file data_pelanggan.txt.\n";
+            return;
+        }
+        if (kosong) file << tiketHeader << "\n";
+
+        TicketRecord baru;
+        baru.nik = nik;
+        baru.nama = nama;
+        baru.umur = umur;
+        baru.gender = gender;
+        baru.asal = p.asal;
+        baru.tujuan = p.tujuan;
+        baru.maskapai = p.maskapai;
+        baru.tanggal = p.jadwal.tanggal;
+        baru.jam = p.jadwal.jam;
+        baru.status = "BELUM CHECK-IN";
+        baru.bagasi = -1;
+        baru.kursi = "";
+        baru.gate = "";
+        baru.keterangan = "";
+
+        file << serializeTicket(baru) << "\n";
+        file.close();
+
+        cout << "\nTiket berhasil dipesan\n";
+        cout << "Status tiket: BELUM CHECK-IN\n";
+    }
+
+    void checkInTiket(Penerbangan daftar[], int jumlah) {
+        string nik, nama;
+        cout << "\n=== CHECK-IN TIKET ===\n";
+        cout << "Masukkan NIK              : ";
+        getline(cin, nik);
+
+        cout << "Masukkan Nama             : ";
+        getline(cin, nama);
+
+        cout << "Masukkan Berat Bagasi (kg): ";
+        string inputBerat;
+        getline(cin, inputBerat);
+
+        int beratBagasi;
+        if (!parseBerat(inputBerat, beratBagasi)) {
+            cout << "Input berat bagasi tidak valid. Gunakan angka saja.\n";
+            return;
+        }
+
+        DynamicArraySimple<TicketRecord> tiket = bacaSemuaTiket();
+        int idx = -1;
+        for (int i = 0; i < tiket.size; ++i) {
+            if (tiket.data[i].nik == nik && tiket.data[i].nama == nama) {
+                idx = i;
+                break;
+            }
+        }
+
+        if (idx == -1) {
+            cout << "\n----------------------------------------\n";
+            cout << "Data tidak ditemukan\n";
+            cout << "Check-in dibatalkan.\n";
+            cout << "----------------------------------------\n";
+            return;
+        }
+
+        TicketRecord& data = tiket.data[idx];
+        if (data.status == "SUDAH CHECK-IN") {
+            cout << "\n----------------------------------------\n";
+            cout << "Status Check-In : SUDAH CHECK-IN\n";
+            cout << "Nomor Kursi     : " << (data.kursi.empty() ? "-" : data.kursi) << "\n";
+            cout << "Gate            : " << (data.gate.empty() ? "-" : data.gate) << "\n";
+            cout << "Keterangan      : Tiket sudah diproses check-in" << "\n";
+            cout << "----------------------------------------\n";
+            return;
+        }
+
+        data.status = "SUDAH CHECK-IN";
+        data.bagasi = beratBagasi;
+        data.kursi = acakKursi();
+        data.gate = acakGate();
+
+        const int BATAS_BAGASI = 20;
+        if (beratBagasi > BATAS_BAGASI) {
+            int kelebihan = beratBagasi - BATAS_BAGASI;
+            long biaya = static_cast<long>(kelebihan) * 50000L;
+            data.keterangan = "Kelebihan bagasi " + to_string(kelebihan) + " kg, biaya " + formatRupiah(biaya);
+        } else {
+            data.keterangan = "Bagasi sesuai batas, tidak ada biaya tambahan";
+        }
+
+        simpanSemuaTiket(tiket);
+
+        cout << "\n----------------------------------------\n";
+        cout << "Status Check-In : BERHASIL\n";
+        cout << "Nomor Kursi     : " << data.kursi << "\n";
+        cout << "Gate            : " << data.gate << "\n";
+        cout << "Keterangan      : " << data.keterangan << "\n";
+        cout << "----------------------------------------\n";
+    }
+
+    void tampilkanTiketSaya() {
+        DynamicArraySimple<TicketRecord> daftar = bacaSemuaTiket();
+        if (daftar.size == 0) {
+            cout << "Belum ada tiket yang dipesan.\n";
+            return;
+        }
+
+        cout << "\n=== TIKET SAYA ===\n";
+        for (int i = 0; i < daftar.size; ++i) {
+            TicketRecord& t = daftar.data[i];
+            cout << i + 1 << ". " << t.nama << " | NIK: " << t.nik << " | "
+                 << t.asal << " -> " << t.tujuan << " | "
+                 << t.tanggal << " " << t.jam << " | Status: " << t.status << "\n";
+
+            if (t.status == "SUDAH CHECK-IN") {
+                cout << "   Kursi: " << (t.kursi.empty() ? "-" : t.kursi)
+                     << " | Gate: " << (t.gate.empty() ? "-" : t.gate) << "\n";
+            }
+        }
+    }
+
+    void tampilkanRiwayatPemesanan() {
+        DynamicArraySimple<TicketRecord> daftar = bacaSemuaTiket();
+        if (daftar.size == 0) {
+            cout << "Belum ada riwayat pemesanan.\n";
+            return;
+        }
+
+        cout << "\n=== RIWAYAT PEMESANAN ===\n";
+        for (int i = 0; i < daftar.size; ++i) {
+            TicketRecord& t = daftar.data[i];
+            string bagasiStr = (t.bagasi < 0) ? "-" : to_string(t.bagasi) + " kg";
+            string kursiStr = t.kursi.empty() ? "-" : t.kursi;
+            string gateStr = t.gate.empty() ? "-" : t.gate;
+
+            cout << i + 1 << ". " << t.nama << " | NIK: " << t.nik
+                 << " | " << t.maskapai << " | " << t.asal << " -> " << t.tujuan
+                 << " | " << t.tanggal << " " << t.jam
+                 << " | Bagasi: " << bagasiStr
+                 << " | Kursi: " << kursiStr
+                 << " | Gate: " << gateStr
+                 << " | Status: " << t.status
+                 << " | Ket: " << (t.keterangan.empty() ? "-" : t.keterangan)
+                 << "\n";
+        }
+    }
+
+    void tandaiPenerbanganSelesai() {
+        DynamicArraySimple<TicketRecord> daftar = bacaSemuaTiket();
+        if (daftar.size == 0) {
+            cout << "Belum ada tiket.\n";
+            return;
+        }
+
+        string nik, nama;
+        cout << "Masukkan NIK  : ";
+        getline(cin, nik);
+        cout << "Masukkan Nama : ";
+        getline(cin, nama);
+
+        int idx = -1;
+        for (int i = 0; i < daftar.size; ++i) {
+            if (daftar.data[i].nik == nik && daftar.data[i].nama == nama) {
+                idx = i;
+                break;
+            }
+        }
+
+        if (idx == -1) {
+            cout << "Data tidak ditemukan.\n";
+            return;
+        }
+
+        TicketRecord& t = daftar.data[idx];
+        if (t.status == "SELESAI") {
+            cout << "Status sudah SELESAI.\n";
+            return;
+        }
+
+        t.status = "SELESAI";
+        simpanSemuaTiket(daftar);
+        cout << "Status penerbangan telah ditandai SELESAI.\n";
+    }
+
+    void menuRiwayat() {
+        int pilih;
+        do {
+            cout << "\n=== MENU RIWAYAT PEMESANAN ===\n";
+            cout << "1. Lihat Riwayat Pemesanan\n";
+            cout << "2. Tandai Penerbangan Selesai\n";
+            cout << "3. Kembali\n";
+            cout << "Pilih (1-3): ";
+            if (!(cin >> pilih)) {
+                cin.clear();
+                cin.ignore(10000, '\n');
+                cout << "Input tidak valid.\n";
+                continue;
+            }
+            cin.ignore(10000, '\n');
+
+            switch (pilih) {
+                case 1: tampilkanRiwayatPemesanan(); break;
+                case 2: tandaiPenerbanganSelesai(); break;
+                case 3: cout << "Kembali...\n"; break;
+                default: cout << "Pilihan tidak valid.\n"; break;
+            }
+        } while (pilih != 3);
+    }
+
+    void tampilkanJadwalPenerbangan() {
+        ifstream file("data_penerbangan.txt");
+        if (!file.is_open()) {
+            cout << "Belum ada data penerbangan.\n";
+            return;
+        }
+
+        cout << "\n=== JADWAL PENERBANGAN ===\n";
+        string asal, tujuan, tanggal, jam, maskapai;
+        double bagasi;
+        int i = 1;
+
+        while (file >> asal >> tujuan >> tanggal >> jam >> bagasi) {
+            file.ignore();
+            getline(file, maskapai);
+            cout << i++ << ". " << maskapai << " | " << asal << " -> " << tujuan
+                 << " | " << tanggal << " " << jam << " | Bagasi Maks: " << bagasi << "kg\n";
+        }
+
+        if (i == 1) cout << "Tidak ada data penerbangan.\n";
+
+        file.close();
+    }
+
+    void tampilkanTreePenerbangan(Penerbangan daftar[], int jumlah) {
+        // Bangun daftar penerbangan dari file; jika kosong pakai data default parameter
+        DynamicArraySimple<Penerbangan> daftarFile;
+        ifstream f("data_penerbangan.txt");
+        if (f.is_open()) {
+            while (true) {
+                Penerbangan temp;
+                if (!(f >> temp.asal >> temp.tujuan >> temp.jadwal.tanggal >> temp.jadwal.jam >> temp.maxBeratBagasi)) break;
+                f.ignore();
+                getline(f, temp.maskapai);
+                daftarFile.push_back(temp);
+            }
+            f.close();
+        }
+        if (daftarFile.size == 0) {
+            for (int i = 0; i < jumlah; ++i) daftarFile.push_back(daftar[i]);
+        }
+
+        // Bangun BST
+        clearTree(rootTree);
+        rootTree = nullptr;
+        for (int i = 0; i < daftarFile.size; ++i) {
+            rootTree = insertNode(rootTree, daftarFile.data[i]);
+        }
+
+        if (!rootTree) {
+            cout << "Belum ada data penerbangan.\n";
+            return;
+        }
+
+        cout << "\n=== TREE JADWAL PENERBANGAN (Inorder) ===\n";
+        int urut = 1;
+        inorderPrint(rootTree, urut);
+    }
+
+    void tampilkanProfilSaya() {
+        if (!sistemAkun.isLogged()) {
+            cout << "Anda belum login. Silakan login terlebih dahulu.\n";
+            return;
+        }
+
+        cout << "\n=== PROFIL SAYA ===\n";
+        cout << "Username : " << sistemAkun.getCurrentUser() << "\n";
+        cout << "Password : " << sistemAkun.getCurrentPass() << "\n";
+    }
+
+    void menuPelanggan(Penerbangan daftar[], int jumlah) {
+        int sub;
+        bool loginBerhasil = false;
+
+        do {
+            cout << "\n=== MENU PELANGGAN ===\n";
+            cout << "1. Register Akun Baru\n";
+            cout << "2. Login\n";
+            cout << "3. Kembali\n";
+            cout << "Pilih: ";
+            if (!(cin >> sub)) {
+                cin.clear();
+                cin.ignore(10000, '\n');
+                cout << "Input tidak valid! Masukkan angka 1-3.\n";
+                continue;
+            }
+            cin.ignore(10000, '\n');
+
+            switch (sub) {
+                case 1:
+                    sistemAkun.registerAkun();
+                    break;
+
+                case 2:
+                    loginBerhasil = sistemAkun.loginAkun();
+                    if (loginBerhasil) {
+                        int menu;
+                        do {
+                            cout << "\n=== MENU PELANGGAN ===\n";
+                            cout << "Haloo (Tuan/Nona), Selamat datang di website kami ><.\n";
+                            cout << "1. Lihat Jadwal Penerbangan\n";
+                            cout << "2. Pesan Tiket\n";
+                            cout << "3. Tiket Saya\n";
+                            cout << "4. Check-In Tiket\n";
+                            cout << "5. Riwayat Pemesanan\n";
+                            cout << "6. Cari Data Pelanggan\n";
+                            cout << "8. Keluar\n";
+                            cout << "Pilih (1-6 atau 8): ";
+                            if (!(cin >> menu)) {
+                                cin.clear();
+                                cin.ignore(10000, '\n');
+                                cout << "Input tidak valid! Masukkan angka 1-8.\n";
+                                continue;
+                            }
+                            cin.ignore(10000, '\n');
+
+                            switch (menu) {
+                                case 1:
+                                    tampilkanJadwalPenerbangan();
+                                    break;
+
+                                case 2:
+                                    pesanTiket(daftar, jumlah);
+                                    break;
+
+                                case 3:
+                                    tampilkanTiketSaya();
+                                    break;
+
+                                case 4:
+                                    checkInTiket(daftar, jumlah);
+                                    break;
+
+                                case 5:
+                                    menuRiwayat();
+                                    break;
+
+                                case 6:
+                                    pelanggan.cariData();
+                                    break;
+
+                                case 8:
+                                    cout << "Keluar dari akun...\n";
+                                    sistemAkun.logout();
+                                    break;
+
+                                default:
+                                    cout << "Pilihan tidak valid!\n";
+                                    break;
+                            }
+                        } while (menu != 8);
+                    }
+                    break;
+
+                case 3:
+                    cout << "Kembali ke menu utama...\n";
+                    break;
+
+                default:
+                    cout << "Pilihan tidak valid!\n";
+                    break;
+            }
+        } while (sub != 3);
+    }
+};
+
+#endif
